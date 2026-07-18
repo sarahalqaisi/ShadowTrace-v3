@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Audit Log | ShadowTrace v3{% endblock %}
+{% block page_title %}Audit & Activity Log{% endblock %}
+{% block content %}
+<section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">Accountability</p><h2>System audit trail</h2></div><span class="muted">{{ total }} recorded actions</span></div>
+    <form class="audit-filter" method="get" data-loading-text="Filtering audit records…"><label>Search<input name="q" value="{{ filters.q }}" placeholder="User, entity, ID, or details"></label><label>Action<select name="action"><option value="">All actions</option>{% for item in actions %}<option value="{{ item }}" {% if filters.action == item %}selected{% endif %}>{{ item|replace('_',' ')|title }}</option>{% endfor %}</select></label><button class="primary-button" type="submit">Apply</button><a class="ghost-button" href="{{ url_for('main.audit_log') }}">Reset</a></form>
+    <div class="table-scroll"><table class="data-table"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>Source IP</th><th>Details</th></tr></thead><tbody>{% for item in entries %}<tr><td>{{ item.created_at|friendly_time }}</td><td><strong>{{ item.username }}</strong></td><td>{{ item.action|replace('_',' ')|title }}</td><td>{{ item.entity_type }}{% if item.entity_id %} #{{ item.entity_id }}{% endif %}</td><td><code>{{ item.ip_address or '—' }}</code></td><td><code class="details-code">{{ item.details }}</code></td></tr>{% else %}<tr><td colspan="6" class="empty-state">No audit entries match the current filters.</td></tr>{% endfor %}</tbody></table></div>
+    {% if pages > 1 %}<nav class="pagination">{% if page > 1 %}<a href="{{ url_for('main.audit_log', page=page-1, **filters) }}">Previous</a>{% endif %}<span>Page {{ page }} of {{ pages }}</span>{% if page < pages %}<a href="{{ url_for('main.audit_log', page=page+1, **filters) }}">Next</a>{% endif %}</nav>{% endif %}
+</section>
+{% endblock %}

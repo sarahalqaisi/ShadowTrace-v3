@@ -1,0 +1,5 @@
+This is a safe cybersecurity lab file.
+The file contains simulated suspicious indicators.
+powershell encoded command
+disable security tools
+delete backup copies

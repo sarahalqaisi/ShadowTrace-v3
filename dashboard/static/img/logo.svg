@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+
+  <defs>
+
+    <linearGradient id="shieldGradient" x1="0" y1="0" x2="1" y2="1">
+
+      <stop offset="0%" stop-color="#67d2ff"/>
+
+      <stop offset="50%" stop-color="#2f8cff"/>
+
+      <stop offset="100%" stop-color="#8f6bff"/>
+
+    </linearGradient>
+
+
+    <linearGradient id="eyeGradient" x1="0" y1="0" x2="1" y2="0">
+
+      <stop offset="0%" stop-color="#1fd1a5"/>
+
+      <stop offset="100%" stop-color="#67d2ff"/>
+
+    </linearGradient>
+
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+
+      <feMerge>
+
+        <feMergeNode in="blur"/>
+
+        <feMergeNode in="SourceGraphic"/>
+
+      </feMerge>
+
+    </filter>
+
+  </defs>
+
+
+  <path
+
+    d="M80 8
+       L137 30
+       V72
+       C137 111 115 136 80 152
+       C45 136 23 111 23 72
+       V30
+       Z"
+
+    fill="#071425"
+
+    stroke="url(#shieldGradient)"
+
+    stroke-width="6"
+
+    stroke-linejoin="round"
+
+  />
+
+
+  <path
+
+    d="M48 78
+       C56 63 67 56 80 56
+       C93 56 104 63 112 78
+       C104 93 93 100 80 100
+       C67 100 56 93 48 78
+       Z"
+
+    fill="none"
+
+    stroke="url(#eyeGradient)"
+
+    stroke-width="6"
+
+    stroke-linecap="round"
+
+    stroke-linejoin="round"
+
+    filter="url(#glow)"
+
+  />
+
+
+  <circle
+
+    cx="80"
+
+    cy="78"
+
+    r="11"
+
+    fill="#67d2ff"
+
+    filter="url(#glow)"
+
+  />
+
+
+  <circle
+
+    cx="80"
+
+    cy="78"
+
+    r="4"
+
+    fill="#071425"
+
+  />
+
+
+  <path
+
+    d="M45 115
+       C57 107 68 103 80 103
+       C92 103 103 107 115 115"
+
+    fill="none"
+
+    stroke="url(#shieldGradient)"
+
+    stroke-width="5"
+
+    stroke-linecap="round"
+
+  />
+
+
+  <circle
+
+    cx="45"
+
+    cy="115"
+
+    r="4"
+
+    fill="#67d2ff"
+
+  />
+
+
+  <circle
+
+    cx="115"
+
+    cy="115"
+
+    r="4"
+
+    fill="#8f6bff"
+
+  />
+
+</svg>

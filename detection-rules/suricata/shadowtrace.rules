@@ -1,0 +1,1 @@
+alert tcp any any -> any any (msg:"SHADOWTRACE Possible TCP SYN Port Scan"; flags:S; flow:stateless; threshold:type both, track by_src, count 5, seconds 10; classtype:network-scan; sid:1000001; rev:1;)

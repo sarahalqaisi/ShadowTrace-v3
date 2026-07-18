@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | ShadowTrace v3{% endblock %}
+{% block page_title %}Threat Operations Dashboard{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<section class="hero panel-gradient">
+    <div>
+        <span class="pill"><span class="live-dot"></span>Live correlation engine</span>
+        <h2>From isolated alerts to one attack narrative.</h2>
+        <p>Investigate incidents, enrich indicators, correlate IOCs, map MITRE ATT&CK techniques, and export evidence-ready reports.</p>
+    </div>
+    <div class="hero-score-group">
+        <div class="hero-score"><span>Average confidence</span><strong id="avg-confidence">{{ statistics.average_confidence }}%</strong><small>Across all incidents</small></div>
+        <div class="hero-score"><span>Average threat</span><strong id="avg-threat">{{ statistics.average_threat_score }}</strong><small>Explainable score /100</small></div>
+    </div>
+</section>
+
+<section class="metric-grid metric-grid-five">
+    <article class="metric-card"><span>Total incidents</span><strong id="total-incidents">{{ statistics.total_incidents }}</strong><small>Stored cases</small></article>
+    <article class="metric-card"><span>Active threats</span><strong id="active-threats">{{ statistics.active_threats }}</strong><small>Not resolved or closed</small></article>
+    <article class="metric-card"><span>Evidence records</span><strong id="total-evidence">{{ statistics.total_evidence }}</strong><small>Correlated observations</small></article>
+    <article class="metric-card"><span>Extracted IOCs</span><strong id="ioc-total">{{ statistics.ioc_statistics.total }}</strong><small><span id="ioc-unique">{{ statistics.ioc_statistics.unique }}</span> unique indicators</small></article>
+    <article class="metric-card"><span>Cross-case IOCs</span><strong id="ioc-correlated">{{ statistics.ioc_statistics.correlated }}</strong><small>Seen in multiple incidents</small></article>
+</section>
+
+<section class="panel ioc-quick-panel">
+    <div>
+        <p class="eyebrow">Threat intelligence</p>
+        <h2>IOC Lookup & Correlation</h2>
+        <p class="muted">Search IPs, domains, URLs, MD5, SHA-1, SHA-256, and email indicators across local cases and configured providers.</p>
+    </div>
+    <form action="{{ url_for('main.ioc_lookup') }}" method="get" class="ioc-quick-form" data-loading-text="Correlating indicator…">
+        <label>Indicator<input name="value" placeholder="8.8.8.8, example.org, or SHA-256" required></label>
+        <button class="primary-button" type="submit">Run lookup</button>
+    </form>
+</section>
+
+<section class="panel filter-panel" id="incidents">
+    <div class="panel-heading">
+        <div><p class="eyebrow">Investigation queue</p><h2>Incident explorer</h2></div>
+        <div class="export-actions"><a class="ghost-button" href="{{ url_for('main.incidents_report', fmt='pdf', **filters) }}">PDF</a><a class="ghost-button" href="{{ url_for('main.incidents_report', fmt='csv', **filters) }}">CSV</a><a class="ghost-button" href="{{ url_for('main.incidents_report', fmt='json', **filters) }}">JSON</a></div>
+    </div>
+    <form class="filter-grid" method="get" data-loading-text="Filtering incidents…">
+        <label class="wide">Search<input name="q" value="{{ filters.q }}" placeholder="Title, IP, IOC, or summary"></label>
+        <label>Severity<select name="severity"><option value="">All</option>{% for item in ['CRITICAL','HIGH','MEDIUM','LOW','UNKNOWN'] %}<option {% if filters.severity == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+        <label>Status<select name="status"><option value="">All</option>{% for item in ['Open','Investigating','Contained','Resolved','Closed'] %}<option {% if filters.status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+        <label>Tool<select name="tool"><option value="">All</option>{% for item in tools %}<option {% if filters.tool == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+        <label>Minimum score<input type="number" name="min_score" min="0" max="100" value="{{ filters.min_score }}" placeholder="0–100"></label>
+        <label>From<input type="date" name="from_date" value="{{ filters.from_date }}"></label>
+        <label>To<input type="date" name="to_date" value="{{ filters.to_date }}"></label>
+        <div class="filter-buttons"><button class="primary-button" type="submit">Apply filters</button><a class="ghost-button" href="{{ url_for('main.index') }}#incidents">Reset</a></div>
+    </form>
+    <div class="table-meta"><span>{{ total_filtered }} matching incident{{ '' if total_filtered == 1 else 's' }}</span><span>Page {{ page }} of {{ pages }}</span></div>
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead><tr><th>ID</th><th>Incident</th><th>Severity</th><th>Threat</th><th>Status</th><th>Source</th><th>Confidence</th><th>Evidence / IOCs</th><th>Analyst</th><th></th></tr></thead>
+            <tbody>
+            {% for incident in incidents %}
+            <tr>
+                <td>#{{ incident.id }}</td>
+                <td><strong>{{ incident.title }}</strong><small>{{ incident.first_seen|friendly_time }}</small></td>
+                <td><span class="badge severity-{{ incident.severity|lower }}">{{ incident.severity }}</span></td>
+                <td><span class="threat-score threat-{{ incident.severity|lower }}">{{ incident.threat_score }}</span></td>
+                <td><span class="badge status">{{ incident.status or 'Open' }}</span></td>
+                <td><code>{{ incident.source_ip or '—' }}</code></td>
+                <td><div class="progress"><span style="width:{{ incident.confidence }}%"></span></div><small>{{ incident.confidence }}%</small></td>
+                <td><span>{{ incident.evidence_count }} evidence</span><small>{{ incident.ioc_count }} IOCs</small></td>
+                <td>{{ incident.assigned_analyst or 'Unassigned' }}</td>
+                <td><a class="row-link" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">Investigate →</a></td>
+            </tr>
+            {% else %}<tr><td colspan="10" class="empty-state">No incidents match the current filters.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if pages > 1 %}<nav class="pagination">
+        {% if page > 1 %}<a href="{{ url_for('main.index', page=page-1, per_page=per_page, **filters) }}#incidents">Previous</a>{% endif %}
+        {% for number in range([1,page-2]|max, [pages,page+2]|min + 1) %}<a class="{% if number == page %}active{% endif %}" href="{{ url_for('main.index', page=number, per_page=per_page, **filters) }}#incidents">{{ number }}</a>{% endfor %}
+        {% if page < pages %}<a href="{{ url_for('main.index', page=page+1, per_page=per_page, **filters) }}#incidents">Next</a>{% endif %}
+    </nav>{% endif %}
+</section>
+
+<section class="analytics-grid" id="analytics">
+    <article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Risk distribution</p><h2>Incidents by severity</h2></div></div><canvas id="severity-chart"></canvas></article>
+    <article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Workflow</p><h2>Status distribution</h2></div></div><canvas id="status-chart"></canvas></article>
+    <article class="panel chart-panel wide-chart"><div class="panel-heading"><div><p class="eyebrow">Detection sources</p><h2>Evidence by tool</h2></div></div><canvas id="tool-chart"></canvas></article>
+    <article class="panel chart-panel wide-chart"><div class="panel-heading"><div><p class="eyebrow">Incident volume</p><h2>Timeline trend</h2></div></div><canvas id="trend-chart"></canvas></article>
+</section>
+
+<section class="country-layout">
+    <article class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Country statistics</p><h2>Incidents by origin</h2></div></div><canvas id="country-chart"></canvas></article>
+    <article class="panel"><div class="panel-heading"><div><p class="eyebrow">GeoIP summary</p><h2>Top countries</h2></div></div><div class="table-scroll"><table class="data-table compact-table"><thead><tr><th>Country</th><th>Incidents</th><th>Critical</th><th>Max score</th></tr></thead><tbody id="country-table-body">{% for item in statistics.countries[:8] %}<tr><td><span class="country-code">{{ item.country_code }}</span><strong>{{ item.country }}</strong></td><td>{{ item.incidents }}</td><td>{{ item.critical }}</td><td><span class="score-mini">{{ item.max_threat_score }}</span></td></tr>{% else %}<tr><td colspan="4" class="empty-state">No cached GeoIP results yet.</td></tr>{% endfor %}</tbody></table></div></article>
+</section>
+
+<section class="panel" id="attack-map">
+    <div class="panel-heading"><div><p class="eyebrow">GeoIP intelligence</p><h2>World attack map</h2></div><span class="muted">Only cached public-IP lookups are plotted.</span></div>
+    <div id="map" class="map"></div>
+    <p id="map-empty" class="empty-hint" hidden>No geolocated public indicators are cached yet. Open an incident with a public source IP or load the seed data.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,16 @@
+network_reconnaissance:
+  attack_stage: Reconnaissance
+  kill_chain_phase: Reconnaissance
+  technique: T1046 - Network Service Discovery
+host_permission_change:
+  attack_stage: Defense Evasion
+  kill_chain_phase: Exploitation
+  technique: T1222.002 - Linux and Mac File Permissions Modification
+suspicious_file_execution:
+  attack_stage: Execution
+  kill_chain_phase: Exploitation
+  technique: T1204 - User Execution
+credential_activity:
+  attack_stage: Credential Access
+  kill_chain_phase: Actions on Objectives
+  technique: T1110 - Brute Force

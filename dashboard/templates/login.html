@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Sign in | ShadowTrace v3</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+<main class="login-wrap">
+    <section class="login-visual">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="ShadowTrace logo">
+        <p class="eyebrow">Security Event Correlation</p>
+        <h1>See the complete attack story.</h1>
+        <p>Correlate network, host, file, and IOC evidence into an explainable timeline with MITRE ATT&CK and Cyber Kill Chain context.</p>
+        <div class="login-feature-grid"><span>Threat scoring</span><span>IOC correlation</span><span>Similar incidents</span><span>Exportable reports</span></div>
+    </section>
+    <section class="login-card">
+        <p class="eyebrow">Authenticated workspace</p>
+        <h2>Analyst sign in</h2>
+        <p class="muted">Use an active ShadowTrace account.</p>
+        {% if error %}<div class="flash danger">{{ error }}</div>{% endif %}
+        <form method="post" class="stack-form" data-loading-text="Opening secure workspace…">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Username<input name="username" autocomplete="username" required autofocus></label>
+            <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+            <button class="primary-button full" type="submit">Open workspace</button>
+        </form>
+        <p class="login-help">Create accounts with <code>python scripts/create_user.py</code>.</p>
+    </section>
+</main>
+<div class="loading-overlay" id="loading-overlay" hidden aria-live="polite" aria-busy="true"><div class="loading-card"><span class="spinner"></span><strong id="loading-message">Opening secure workspace…</strong><small>ShadowTrace is validating the account.</small></div></div>
+<script src="{{ url_for('static', filename='js/base.js') }}"></script>
+</body>
+</html>
