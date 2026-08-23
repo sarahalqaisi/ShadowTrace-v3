@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS evidence (
     description TEXT,
     risk_points INTEGER DEFAULT 0 CHECK (risk_points >= 0),
     raw_event TEXT,
+    evidence_sha256 TEXT,
+    ingested_at TEXT,
     FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE SET NULL
 );
 
@@ -150,6 +152,16 @@ CREATE TABLE IF NOT EXISTS threat_intel_cache (
     expires_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS threat_intel_provider_cache (
+    provider TEXT NOT NULL,
+    ioc_type TEXT NOT NULL,
+    normalized_value TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (provider, ioc_type, normalized_value)
+);
+
 CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
 CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents(severity);
 CREATE INDEX IF NOT EXISTS idx_incidents_first_seen ON incidents(first_seen);
@@ -164,3 +176,4 @@ CREATE INDEX IF NOT EXISTS idx_iocs_incident ON iocs(incident_id);
 CREATE INDEX IF NOT EXISTS idx_iocs_value ON iocs(normalized_value);
 CREATE INDEX IF NOT EXISTS idx_iocs_type_value ON iocs(ioc_type, normalized_value);
 CREATE INDEX IF NOT EXISTS idx_ioc_lookup_created ON ioc_lookup_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_provider_cache_expiry ON threat_intel_provider_cache(expires_at);

@@ -20,6 +20,9 @@ class Config:
     JSON_SORT_KEYS = False
     REQUEST_TIMEOUT = float(os.getenv("SHADOWTRACE_REQUEST_TIMEOUT", "7"))
     THREAT_CACHE_MINUTES = int(os.getenv("SHADOWTRACE_THREAT_CACHE_MINUTES", "60"))
+    THREAT_CACHE_MAX_ENTRIES = int(os.getenv("SHADOWTRACE_THREAT_CACHE_MAX_ENTRIES", "1000"))
+    THREAT_MAX_RESPONSE_BYTES = int(os.getenv("SHADOWTRACE_THREAT_MAX_RESPONSE_BYTES", "1048576"))
+    THREAT_INTEL_MODE = os.getenv("SHADOWTRACE_THREAT_INTEL_MODE", "offline").strip().lower()
     ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY", "").strip()
     VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY", "").strip()
     DEFAULT_PAGE_SIZE = int(os.getenv("SHADOWTRACE_PAGE_SIZE", "10"))
@@ -33,3 +36,5 @@ class Config:
                 "SHADOWTRACE_SECRET_KEY is missing. Copy .env.example to .env "
                 "and set a strong random value."
             )
+        if cls.THREAT_INTEL_MODE not in {"offline", "live"}:
+            raise RuntimeError("SHADOWTRACE_THREAT_INTEL_MODE must be 'offline' or 'live'.")

@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+*.pyc
+*.db
+*.sqlite*
+.pytest_cache
+reports
+uploads
+logs
+sample-evidence/protected

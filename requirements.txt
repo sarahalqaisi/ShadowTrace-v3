@@ -5,3 +5,4 @@ python-dotenv==1.2.2
 requests==2.34.2
 reportlab==5.0.0
 PyYAML==6.0.3
+gunicorn==26.1.0

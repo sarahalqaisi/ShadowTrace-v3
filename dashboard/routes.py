@@ -448,11 +448,11 @@ def ioc_lookup():
 def ioc_lookup_api():
     value = (request.args.get("value") or "").strip()
     if not value:
-        return jsonify({"error": "The value query parameter is required."}), 400
+        return jsonify({"error": "The value query parameter is required.", "error_code": "invalid_indicator"}), 400
     try:
         local = local_ioc_matches(value)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "The supplied indicator is invalid or unsupported.", "error_code": "invalid_indicator"}), 400
     intelligence = lookup_indicator(value, local["ioc_type"])
     return jsonify(
         {

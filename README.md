@@ -1,173 +1,95 @@
-# ShadowTrace v3
+# ShadowTrace
 
-ShadowTrace v3 is a defensive SOC and Blue Team investigation platform built with Flask and SQLite. It turns network, host, and file evidence into searchable incidents, correlates indicators of compromise (IOCs), enriches public indicators with optional threat-intelligence providers, maps activity to MITRE ATT&CK and the Cyber Kill Chain, and produces analyst-ready reports.
+**A DFIR and threat-intelligence investigation platform for reconstructing incidents from network, host, and file evidence.**
 
-## Main capabilities
+[![CI](https://github.com/sarahalqaisi/ShadowTrace-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/sarahalqaisi/ShadowTrace-v3/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.1-000000)](https://flask.palletsprojects.com/)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-### Investigation and correlation
+ShadowTrace helps an analyst move from heterogeneous evidence to an explainable case: normalize and correlate IOCs, reconstruct a timeline, enrich eligible public indicators, pivot to related incidents, and export an investigation report. It is intentionally distinct from a detection-rule platform: ShadowTrace focuses on the investigation that follows collected security evidence.
 
-- Incident queue with full-text search, filters, date ranges, minimum Threat Score, sorting, and server-side pagination
-- Deterministic IOC extraction and normalization for IPv4/IPv6, domains, URLs, MD5, SHA-1, SHA-256, and email addresses
-- IOC correlation across incidents, evidence, endpoints, and techniques
-- Similar Incidents ranking with explainable reasons and shared indicators
-- Stored, explainable Threat Score for prioritization and auditing
-- Reconstructed incident timeline from Suricata, Auditd, and YARA evidence
-- MITRE ATT&CK technique mapping and Cyber Kill Chain phase mapping
-- Analyst assignment, workflow status, notes, activity history, and admin audit log
+> Portfolio/reference implementation. It does not monitor deployed infrastructure, provide measured detection accuracy, or replace a production SIEM/SOAR, forensic suite, or threat-intelligence platform.
 
-### Threat intelligence
+## What it demonstrates
 
-- Dedicated IOC Lookup workspace and JSON API
-- VirusTotal support for public IPs, domains, URLs, and file hashes
-- AbuseIPDB reputation checks for public IP addresses
-- GeoIP enrichment through IPWhois for public IP addresses
-- Provider isolation, timeouts, SQLite caching, and graceful operation without API keys
-- Privacy safeguards: private, loopback, reserved, multicast, link-local, and unspecified IP addresses are never sent to external providers
+- Deterministic IOC normalization and cross-incident correlation for IPs, domains, URLs, hashes, and email addresses
+- Evidence-backed incident timelines with ATT&CK and Cyber Kill Chain context
+- Optional live VirusTotal, AbuseIPDB, and IPWhois enrichment through isolated provider adapters
+- Explicit, deterministic offline mode with no silent fallback from live provider failures
+- Analyst workflow, audit trail, similarity pivots, and PDF/CSV/JSON reporting
 
-### Dashboard and reports
+No real application screenshot is currently tracked in the repository. A future portfolio pass should add a sanitized screenshot captured from the deterministic seed dataset; this README does not substitute a generated mockup.
 
-- Responsive dark SOC dashboard
-- Chart.js severity, workflow, evidence-source, incident-trend, and country charts
-- Leaflet world map using cached public-IP geolocation
-- Country statistics and top-origin summaries
-- Toast notifications, loading overlay, panel loading states, and mobile navigation
-- Detailed incident reports in PDF, CSV, and JSON
-- Filtered incident-queue exports in PDF, CSV, and JSON
+## Architecture
 
-### Security and maintainability
-
-- Flask application factory and separated database, route, service, template, and static layers
-- CSRF protection, hardened cookies, input-size limits, parameterized SQL, and security headers
-- Content Security Policy, clickjacking protection, MIME sniffing protection, and restrictive browser permissions
-- Safe additive SQLite migrations that preserve existing users, incidents, evidence, notes, assignments, and timelines
-- WAL mode, busy timeout, indexes, cached enrichment, and a health endpoint
-- No bundled virtual environment, secrets, Git history, bytecode, or generated reports
-
-## Project structure
-
-```text
-ShadowTrace_v3/
-├── dashboard/
-│   ├── __init__.py              # Application factory, CSRF, errors, security headers
-│   ├── config.py                # Environment-based configuration
-│   ├── db.py                    # SQLite access and safe v3 migration
-│   ├── routes.py                # UI, APIs, workflow, lookup, and reports
-│   ├── services/
-│   │   ├── audit.py             # Activity and audit helpers
-│   │   ├── ioc.py               # IOC extraction, normalization, and correlation
-│   │   ├── reporting.py         # PDF, CSV, and JSON generation
-│   │   └── threat_intel.py      # GeoIP, VirusTotal, AbuseIPDB, scoring, cache
-│   ├── templates/               # Dashboard, incident, IOC, audit, login, errors
-│   └── static/                  # CSS, JavaScript, and assets
-├── correlation-engine/          # Standalone evidence correlation pipeline
-├── parsers/                     # Suricata, Auditd, and YARA importers
-├── database/                    # Database, schema, and migration reference
-├── detection-rules/             # Suricata and YARA rules
-├── sample-evidence/             # Safe local demonstration evidence
-├── scripts/                     # Database, user, and seed-data helpers
-├── tests/                       # Automated application and migration tests
-├── docs/VALIDATION.md           # Completed verification record
-├── run.py                       # Local entry point
-└── requirements.txt
+```mermaid
+flowchart LR
+    A[Suricata JSON<br/>Auditd logs<br/>YARA results] --> B[Evidence parsers]
+    B --> C[(SQLite evidence store)]
+    C --> D[Correlation engine]
+    D --> E[Incidents + timeline<br/>ATT&CK / Kill Chain]
+    E --> F[IOC normalization<br/>and correlation]
+    F --> G[Threat-intel coordinator]
+    G --> H[Privacy eligibility gate]
+    H --> I[Provider adapters<br/>IPWhois / AbuseIPDB / VirusTotal]
+    I --> J[(Bounded provider-aware<br/>TTL cache)]
+    E --> K[Flask analyst workspace]
+    F --> K
+    J --> K
+    K --> L[Related-case pivots<br/>Audit trail<br/>PDF / CSV / JSON]
 ```
 
-## Requirements
+The web request path remains synchronous and bounded by per-provider timeouts. A background job queue was deliberately not added: Flask plus local SQLite has no durable worker or distributed locking model, and an in-process thread pool could lose work during restart. The provider protocol and coordinator provide the seam for a future durable queue.
 
-- Python 3.11 or newer
-- A modern browser
-- Internet access only when using external GeoIP or threat-intelligence enrichment
+## Demo flow
+
+1. Initialize the database and create an analyst account.
+2. Load the deterministic synthetic seed dataset.
+3. Open the incident queue and filter by score, severity, status, tool, or IOC.
+4. Inspect evidence, the reconstructed timeline, ATT&CK context, and correlated indicators.
+5. Pivot to Similar Incidents, add an investigation note, and export a report.
+
+The seed data is synthetic and uses documentation-safe address ranges. Offline mode makes no external provider requests. It is not a claim of real-world detection performance or forensic validation.
 
 ## Quick start
 
-> Run installation commands **inside the extracted `ShadowTrace_v3` directory**. Running them from `~` may accidentally use an unrelated `~/requirements.txt`.
-
-### Kali Linux — recommended automatic setup
+Requires Python 3.11 or newer.
 
 ```bash
-cd ~/Downloads
-unzip ShadowTrace_v3.zip
-cd ShadowTrace_v3
-chmod +x setup_kali.sh
-./setup_kali.sh --create-user
-source .venv/bin/activate
-python run.py
-```
-
-The setup script resolves its own project directory, creates `.venv`, installs only ShadowTrace dependencies, generates `.env` with a random secret, and initializes/upgrades the database.
-
-### Linux or macOS — manual setup
-
-```bash
-cd /path/to/ShadowTrace_v3
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r ./requirements.txt
+python -m pip install -r requirements.txt
 cp .env.example .env
-python scripts/init_db.py
-python scripts/create_user.py --role Admin
-python run.py
-```
-
-### Windows PowerShell
-
-```powershell
-py -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-python scripts/init_db.py
-python scripts/create_user.py --role Admin
-python run.py
-```
-
-Before starting the server, replace `SHADOWTRACE_SECRET_KEY` in `.env` with a strong random value:
-
-```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-Open `http://127.0.0.1:5000`.
-
-The included SQLite database contains clearly labelled demonstration incidents plus any preserved incident already present in the submitted project. User passwords are stored only as secure hashes, so create a new account when the existing password is unknown.
-
-## Seed data
-
-Load the deterministic v3 demonstration dataset:
-
-```bash
+# Put the generated value in SHADOWTRACE_SECRET_KEY within .env
+python scripts/init_db.py
+python scripts/create_user.py --role Admin
 python scripts/seed_data.py
+python run.py
 ```
 
-Reload only the records labelled `[DEMO]`:
+Open `http://127.0.0.1:5000`. The convenience `setup_kali.sh --create-user` performs the same local setup on Kali Linux.
 
-```bash
-python scripts/seed_data.py --reset
-```
+## Threat-intelligence modes
 
-The seed dataset is intentionally synthetic. It uses documentation-safe IP ranges and cached demonstration geolocation so the dashboard, map, country chart, IOC correlation, Threat Scores, and Similar Incidents can be reviewed without making external requests.
-
-## Threat-intelligence configuration
-
-ShadowTrace works without provider keys. Add keys to `.env` to enable optional reputation enrichment:
+The default is explicit offline mode:
 
 ```env
-ABUSEIPDB_API_KEY=your-key
-VIRUSTOTAL_API_KEY=your-key
+SHADOWTRACE_THREAT_INTEL_MODE=offline
 ```
 
-Useful runtime settings:
+Offline mode returns structured disabled-provider results; it does not invent provider verdicts. To make real provider requests, deliberately select live mode and configure the intended keys:
 
 ```env
-SHADOWTRACE_COOKIE_SECURE=false
-SHADOWTRACE_REQUEST_TIMEOUT=7
-SHADOWTRACE_THREAT_CACHE_MINUTES=60
-SHADOWTRACE_PAGE_SIZE=10
+SHADOWTRACE_THREAT_INTEL_MODE=live
+ABUSEIPDB_API_KEY=...
+VIRUSTOTAL_API_KEY=...
 ```
 
-Set `SHADOWTRACE_COOKIE_SECURE=true` only when the application is served over HTTPS.
+IPWhois does not require a key. Live requests use fixed HTTPS destinations, TLS verification, disabled redirects, explicit timeouts, response-size limits, sanitized error categories, and a bounded provider-aware TTL cache. Private, loopback, link-local, reserved, multicast, unspecified, documentation-range, localhost, and internal/reserved-domain indicators are not submitted. Review provider privacy, retention, quotas, and regional requirements first.
 
-## Import and correlate evidence
+## Evidence ingestion and correlation
 
 ```bash
 python parsers/suricata_parser.py /path/to/eve.json
@@ -176,54 +98,60 @@ python parsers/yara_parser.py detection-rules/yara/shadowtrace_suspicious.yar /p
 python correlation-engine/correlate.py
 ```
 
-The correlation engine groups compatible evidence, creates or updates incidents, builds the timeline, applies ATT&CK and Kill Chain context, calculates a Threat Score, synchronizes IOCs, and writes activity entries.
+Parsers preserve the source event text and add a deterministic SHA-256 fingerprint over canonical evidence fields. This provides tamper-evident integrity support for later comparisons; it is not a signed attestation or legal chain of custody. Treat the database, imports, provider results, and exported reports as sensitive. ShadowTrace does not acquire forensic disk images or independently prove chain of custody.
 
-## IOC Lookup
+## API and reports
 
-Use **IOC Lookup** in the navigation to inspect an IP, domain, URL, file hash, or email address. The result includes:
+Authenticated routes retain the v3 response contracts:
 
-- Normalized indicator type and value
-- Matching incidents and evidence
-- External provider status when applicable
-- GeoIP and reputation details for eligible public indicators
-- Aggregated verdict and score
-- Lookup history and audit entry
+- `GET /api/dashboard`
+- `GET /api/incidents`
+- `GET /api/ioc/lookup?value=<indicator>`
+- `GET /api/incidents/<id>/similar`
+- `GET /api/map` and `GET /api/countries`
 
-The JSON endpoint is available to authenticated users at `POST /api/ioc/lookup` and accepts form data containing `indicator`.
+Provider-normalized metadata is additive under `intelligence.provider_results`; established `geo`, `abuseipdb`, `virustotal`, and `risk` fields remain available. Incident and filtered-queue reports support PDF, CSV, and JSON.
 
-## Reports and exports
-
-Each incident page can export a detailed PDF, CSV, or JSON report containing:
-
-- Incident metadata and Threat Score
-- Evidence and raw source details
-- Reconstructed timeline
-- IOCs and correlation data
-- Threat-intelligence verdicts
-- Similar Incidents and shared indicators
-- Notes and activity history
-
-The dashboard also exports the currently filtered incident queue in all three formats.
-
-## Tests
+## Testing and validation
 
 ```bash
-pip install -r requirements-dev.txt
-python -m unittest discover -s tests -v
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python -m compileall -q dashboard parsers scripts correlation-engine tests
+python -m pip_audit --requirement requirements.txt
+git diff --check
 ```
 
-The v3 suite validates authentication, security headers, dashboard APIs, filtering, pagination inputs, IOC handling, correlation, Similar Incidents, country statistics, workflow auditing, reports, and legacy database migration.
+CI uses offline mode and no live provider keys. See the [threat-intelligence architecture](docs/THREAT_INTELLIGENCE.md) and [validation notes](docs/VALIDATION.md).
 
-## Production checklist
+## Container
 
-- Generate and protect a long random `SHADOWTRACE_SECRET_KEY`.
-- Serve through a production WSGI server and HTTPS reverse proxy; do not use Flask's development server publicly.
-- Set `SHADOWTRACE_COOKIE_SECURE=true` behind HTTPS.
-- Restrict filesystem permissions for `.env`, the SQLite database, logs, and reports.
-- Back up the database before every production upgrade.
-- Review provider privacy, retention, terms, quotas, and regional requirements before enabling external enrichment.
-- Replace SQLite with a managed multi-user database if the deployment requires high write concurrency or multiple application replicas.
+```bash
+docker build -t shadowtrace:local .
+docker run --rm -p 8000:8000 \
+  -e SHADOWTRACE_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+  -v shadowtrace-data:/data shadowtrace:local
+```
 
-## Validation
+The image runs Gunicorn as an unprivileged user, stores mutable data under `/data`, includes a health check, and excludes local secrets/databases from the build context. Terminate TLS at a reviewed reverse proxy.
 
-See [`docs/VALIDATION.md`](docs/VALIDATION.md) for the completed test and package checks.
+## Security and production limitations
+
+The application includes CSRF protection, secure cookie options, parameterized SQL, security headers, sanitized server-error responses, authenticated APIs, and an audit trail. Before any internet-facing deployment, add centralized authentication, granular RBAC, rate limiting, session revocation, monitoring, encrypted backups, a managed secret store, formal evidence-retention controls, and an operational database appropriate for concurrent replicas.
+
+See [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [CHANGELOG.md](CHANGELOG.md).
+
+## Repository map
+
+```text
+dashboard/              Flask UI/API, database layer, services, templates, assets
+correlation-engine/     Deterministic incident correlation pipeline
+parsers/                Suricata, Auditd, and YARA evidence importers
+detection-rules/        Demonstration Suricata and YARA rules
+database/               Additive SQLite schema and migration reference
+sample-evidence/        Safe synthetic demonstration evidence
+scripts/                Setup, account, database, and seed helpers
+tests/                  Application, IOC, provider, workflow, report, migration tests
+```
+
+Licensed under the [Apache License 2.0](LICENSE).

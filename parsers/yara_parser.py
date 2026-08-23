@@ -9,6 +9,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE = BASE_DIR / "database" / "shadowtrace.db"
+sys.path.insert(0, str(BASE_DIR))
+from dashboard.services.evidence import evidence_fingerprint
 
 
 def scan_file(rule_path: Path, target_path: Path) -> None:
@@ -55,6 +57,9 @@ def scan_file(rule_path: Path, target_path: Path) -> None:
     connection = sqlite3.connect(DATABASE)
     cursor = connection.cursor()
 
+    values = {"evidence_type": "suspicious_file", "source_tool": "YARA", "timestamp": timestamp,
+              "source_ip": "127.0.0.1", "destination_ip": "127.0.0.1",
+              "description": description, "raw_event": output}
     cursor.execute(
         """
         INSERT INTO evidence (
@@ -79,6 +84,10 @@ def scan_file(rule_path: Path, target_path: Path) -> None:
             30,
             output,
         ),
+    )
+    cursor.execute(
+        "UPDATE evidence SET evidence_sha256=?, ingested_at=? WHERE id=?",
+        (evidence_fingerprint(values), timestamp, cursor.lastrowid),
     )
 
     connection.commit()
