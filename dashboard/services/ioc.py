@@ -63,6 +63,8 @@ def normalize_ioc(value: str, ioc_type: str | None = None) -> tuple[str, str]:
             raise ValueError("The domain is not valid.")
     elif kind == "url":
         parsed = urlsplit(raw)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            raise ValueError("The URL scheme must be HTTP or HTTPS.")
         host = (parsed.hostname or "").lower()
         if not host:
             raise ValueError("The URL does not include a valid hostname.")

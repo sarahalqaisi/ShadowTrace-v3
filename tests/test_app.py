@@ -188,6 +188,18 @@ class ShadowTraceAppTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_ioc("https://user:secret@example.com/")
 
+    def test_url_ioc_requires_http_or_https_even_when_type_is_explicit(self):
+        from dashboard.services.ioc import normalize_ioc
+
+        self.assertEqual(normalize_ioc("http://example.com", "url"), ("url", "http://example.com/"))
+        self.assertEqual(
+            normalize_ioc("https://example.com/path", "url"),
+            ("url", "https://example.com/path"),
+        )
+        for value in ("ftp://example.com", "file://localhost/etc/passwd", "gopher://example.com/"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalize_ioc(value, "url")
+
     def test_provider_cache_is_provider_aware_and_bounded(self):
         with self.app.app_context():
             cache = ProviderCache(60, 2)
