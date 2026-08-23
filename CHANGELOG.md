@@ -1,4 +1,26 @@
-# ShadowTrace v3 — Upgrade Summary
+# Changelog
+
+## Unreleased
+
+### Added
+
+- Common normalized threat-intelligence provider result model and coordinator boundary.
+- Provider-aware bounded TTL cache, explicit offline/live mode, and response-size enforcement.
+- Evidence SHA-256 provenance fingerprints and ingestion timestamps.
+- Non-root Gunicorn container, health check, Docker build exclusions, and pinned-action CI.
+- Security policy, contribution guidance, provider architecture documentation, and expanded tests.
+
+### Changed
+
+- Hardened IOC canonicalization, provider privacy eligibility, redirects, TLS verification, timeouts, and client-safe errors.
+- Added no-store headers to authenticated and API responses.
+- Reframed documentation around DFIR and threat-intelligence investigation without production-readiness claims.
+
+## 3.0.1
+
+The entries below preserve the original v3 project history. Historical test counts describe that release only.
+
+### Upgrade summary
 
 ## Architecture and cleanup
 

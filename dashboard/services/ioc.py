@@ -45,26 +45,42 @@ def detect_ioc_type(value: str | None) -> str | None:
 
 def normalize_ioc(value: str, ioc_type: str | None = None) -> tuple[str, str]:
     raw = value.strip().strip("[](){}<>,;\"'")
+    if not raw or len(raw) > 4096:
+        raise ValueError("Unsupported or invalid IOC value.")
     kind = ioc_type or detect_ioc_type(raw)
     if kind not in IOC_TYPES:
         raise ValueError("Unsupported or invalid IOC value.")
     if kind == "ip":
         normalized = ipaddress.ip_address(raw).compressed
-    elif kind in {"md5", "sha1", "sha256", "domain", "email"}:
+    elif kind in {"md5", "sha1", "sha256", "email"}:
         normalized = raw.lower().rstrip(".")
+    elif kind == "domain":
+        try:
+            normalized = raw.lower().rstrip(".").encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("The domain is not valid.") from exc
+        if len(normalized) > 253 or any(not label or len(label) > 63 for label in normalized.split(".")):
+            raise ValueError("The domain is not valid.")
     elif kind == "url":
         parsed = urlsplit(raw)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            raise ValueError("The URL scheme must be HTTP or HTTPS.")
         host = (parsed.hostname or "").lower()
         if not host:
             raise ValueError("The URL does not include a valid hostname.")
-        port = f":{parsed.port}" if parsed.port else ""
-        userinfo = ""
-        if parsed.username:
-            userinfo = parsed.username
-            if parsed.password:
-                userinfo += f":{parsed.password}"
-            userinfo += "@"
-        normalized = urlunsplit((parsed.scheme.lower(), f"{userinfo}{host}{port}", parsed.path or "/", parsed.query, ""))
+        if parsed.username or parsed.password:
+            raise ValueError("URLs containing credentials are not accepted.")
+        try:
+            port = f":{parsed.port}" if parsed.port else ""
+        except ValueError as exc:
+            raise ValueError("The URL port is invalid.") from exc
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("The URL hostname is invalid.") from exc
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        normalized = urlunsplit((parsed.scheme.lower(), f"{host}{port}", parsed.path or "/", parsed.query, ""))
     else:  # pragma: no cover - guarded above
         normalized = raw
     return kind, normalized

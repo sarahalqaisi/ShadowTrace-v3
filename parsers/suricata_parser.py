@@ -3,11 +3,14 @@
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_PATH = BASE_DIR / "database" / "shadowtrace.db"
+sys.path.insert(0, str(BASE_DIR))
+from dashboard.services.evidence import evidence_fingerprint
 
 
 def calculate_risk(alert: dict) -> int:
@@ -46,6 +49,12 @@ def parse_suricata_file(file_path: Path) -> None:
             description = alert.get("signature", "Unknown Suricata alert")
             risk_points = calculate_risk(alert)
 
+            values = {
+                "evidence_type": "network_alert", "source_tool": "Suricata",
+                "timestamp": event.get("timestamp"), "source_ip": event.get("src_ip"),
+                "destination_ip": event.get("dest_ip"), "description": description,
+                "raw_event": json.dumps(event),
+            }
             cursor.execute(
                 """
                 INSERT INTO evidence (
@@ -68,8 +77,12 @@ def parse_suricata_file(file_path: Path) -> None:
                     event.get("dest_ip"),
                     description,
                     risk_points,
-                    json.dumps(event),
+                    values["raw_event"],
                 ),
+            )
+            cursor.execute(
+                "UPDATE evidence SET evidence_sha256=?, ingested_at=? WHERE id=?",
+                (evidence_fingerprint(values), datetime.now(timezone.utc).isoformat(), cursor.lastrowid),
             )
 
             processed += 1

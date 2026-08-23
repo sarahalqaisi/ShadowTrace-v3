@@ -5,12 +5,18 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from werkzeug.security import generate_password_hash
 
 from dashboard import create_app
 from dashboard.db import SCHEMA_VERSION, get_db, utc_now
 from dashboard.services.ioc import extract_iocs, find_similar_incidents, sync_all_iocs
+from dashboard.services.evidence import evidence_fingerprint
+from dashboard.services.intel_cache import ProviderCache
+from dashboard.services.intel_models import ProviderResult
+from dashboard.services.intel_providers import SafeHttpClient
+from dashboard.services.threat_intel import lookup_indicator
 
 
 SHARED_SHA256 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
@@ -28,6 +34,7 @@ class ShadowTraceAppTests(unittest.TestCase):
                 "REQUEST_TIMEOUT": 0.05,
                 "ABUSEIPDB_API_KEY": "",
                 "VIRUSTOTAL_API_KEY": "",
+                "THREAT_INTEL_MODE": "offline",
             }
         )
         self.client = self.app.test_client()
@@ -158,6 +165,102 @@ class ShadowTraceAppTests(unittest.TestCase):
         self.assertEqual(response.get_json()["version"], SCHEMA_VERSION)
         self.assertEqual(response.headers["X-Frame-Options"], "DENY")
         self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
+        error = self.client.get("/api/missing")
+        self.assertEqual(error.headers["Cache-Control"], "no-store, private")
+
+    @patch("dashboard.services.intel_providers.requests.get")
+    def test_private_and_offline_indicators_never_call_providers(self, request_get):
+        with self.app.app_context():
+            for value, kind in (("127.0.0.1", None), ("192.0.2.9", None), ("fd00::1", None),
+                                ("fe80::1", None), ("localhost", "domain"),
+                                ("service.internal", None), ("https://10.0.0.1/a", None)):
+                result = lookup_indicator(value, kind)
+                self.assertFalse(any(item["available"] for item in result["provider_results"].values()))
+            result = lookup_indicator("8.8.8.8")
+            self.assertEqual(result["mode"], "offline")
+        request_get.assert_not_called()
+
+    def test_ioc_canonicalization_edge_cases(self):
+        pairs = {(item["ioc_type"], item["normalized_value"]) for item in extract_iocs("2001:4860:4860::8888")}
+        self.assertIn(("ip", "2001:4860:4860::8888"), pairs)
+        from dashboard.services.ioc import normalize_ioc
+        self.assertEqual(normalize_ioc("HTTPS://Example.COM:443/a#fragment"), ("url", "https://example.com:443/a"))
+        with self.assertRaises(ValueError):
+            normalize_ioc("https://user:secret@example.com/")
+
+    def test_url_ioc_requires_http_or_https_even_when_type_is_explicit(self):
+        from dashboard.services.ioc import normalize_ioc
+
+        self.assertEqual(normalize_ioc("http://example.com", "url"), ("url", "http://example.com/"))
+        self.assertEqual(
+            normalize_ioc("https://example.com/path", "url"),
+            ("url", "https://example.com/path"),
+        )
+        for value in ("ftp://example.com", "file://localhost/etc/passwd", "gopher://example.com/"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalize_ioc(value, "url")
+
+    def test_provider_cache_is_provider_aware_and_bounded(self):
+        with self.app.app_context():
+            cache = ProviderCache(60, 2)
+            for provider in ("one", "two", "three"):
+                cache.put(provider, "ip", "8.8.8.8", {"provider": provider})
+            db = get_db()
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM threat_intel_provider_cache").fetchone()[0], 2)
+            self.assertIsNone(cache.get("one", "ip", "8.8.8.8"))
+            self.assertIsNotNone(cache.get("three", "ip", "8.8.8.8"))
+
+    @patch("dashboard.services.intel_providers.requests.get")
+    def test_http_boundary_disables_redirects_and_limits_response(self, request_get):
+        response = Mock(status_code=200, headers={"Content-Length": "2048"}, content=b"{}")
+        response.raise_for_status.return_value = None
+        response.iter_content.return_value = [b"{}"]
+        request_get.return_value = response
+        with self.assertRaises(ValueError):
+            SafeHttpClient(1, 1024).get_json("https://ipwho.is/test")
+        self.assertFalse(request_get.call_args.kwargs["allow_redirects"])
+        self.assertTrue(request_get.call_args.kwargs["verify"])
+        with self.assertRaises(ValueError):
+            SafeHttpClient(1, 1024).get_json("http://ipwho.is/test")
+        with self.assertRaises(ValueError):
+            SafeHttpClient(1, 1024).get_json("https://attacker.example/test")
+
+    @patch("dashboard.services.intel_providers.requests.get")
+    def test_provider_timeout_is_sanitized(self, request_get):
+        import requests
+        from dashboard.services.intel_providers import IPWhoisProvider
+        request_get.side_effect = requests.Timeout("sensitive upstream detail")
+        result = IPWhoisProvider(SafeHttpClient(1, 1024)).lookup("ip", "8.8.8.8")
+        self.assertEqual(result.error_category, "timeout")
+        self.assertNotIn("sensitive", result.message)
+
+    def test_evidence_fingerprint_is_deterministic_and_sensitive_to_source(self):
+        source = {"evidence_type": "network_alert", "source_tool": "Suricata", "raw_event": "{}"}
+        self.assertEqual(evidence_fingerprint(source), evidence_fingerprint(dict(source)))
+        changed = dict(source, raw_event='{"changed":true}')
+        self.assertNotEqual(evidence_fingerprint(source), evidence_fingerprint(changed))
+
+    @patch("dashboard.services.threat_intel._provider_set")
+    def test_provider_failures_are_isolated_and_normalized(self, provider_set):
+        providers = []
+        for name, result in (
+            ("IPWhois", ProviderResult("IPWhois", "ok", True, {"country": "Test"})),
+            ("AbuseIPDB", ProviderResult("AbuseIPDB", "error", True, error_category="timeout", message="AbuseIPDB timed out.")),
+            ("VirusTotal", ProviderResult("VirusTotal", "error", False, error_category="not_configured", message="VirusTotal is not configured.")),
+        ):
+            provider = Mock(name=name)
+            provider.name = name
+            provider.supports.return_value = True
+            provider.lookup.return_value = result
+            providers.append(provider)
+        provider_set.return_value = providers
+        with self.app.app_context():
+            self.app.config["THREAT_INTEL_MODE"] = "live"
+            result = lookup_indicator("8.8.8.8", force=True)
+        self.assertTrue(result["geo"]["available"])
+        self.assertFalse(result["abuseipdb"]["available"])
+        self.assertEqual(result["provider_results"]["AbuseIPDB"]["error_category"], "timeout")
+        self.assertNotIn("traceback", json.dumps(result).lower())
 
     def test_login_dashboard_filters_and_api(self):
         response = self.login()

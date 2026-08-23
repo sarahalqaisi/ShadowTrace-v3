@@ -8,6 +8,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_PATH = BASE_DIR / "database" / "shadowtrace.db"
+sys.path.insert(0, str(BASE_DIR))
+from dashboard.services.evidence import evidence_fingerprint
 
 
 def parse_audit_log(log_path: Path) -> None:
@@ -46,6 +48,9 @@ def parse_audit_log(log_path: Path) -> None:
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
 
+    values = {"evidence_type": "host_file_activity", "source_tool": "Auditd", "timestamp": timestamp,
+              "source_ip": "127.0.0.1", "destination_ip": "127.0.0.1",
+              "description": description, "raw_event": raw_log}
     cursor.execute(
         """
         INSERT INTO evidence (
@@ -70,6 +75,10 @@ def parse_audit_log(log_path: Path) -> None:
             25,
             raw_log,
         ),
+    )
+    cursor.execute(
+        "UPDATE evidence SET evidence_sha256=?, ingested_at=? WHERE id=?",
+        (evidence_fingerprint(values), timestamp, cursor.lastrowid),
     )
 
     connection.commit()

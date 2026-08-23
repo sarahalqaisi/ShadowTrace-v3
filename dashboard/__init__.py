@@ -18,6 +18,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             "SHADOWTRACE_SECRET_KEY is missing. Copy .env.example to .env "
             "and set a strong random value."
         )
+    if app.config.get("THREAT_INTEL_MODE") not in {"offline", "live"}:
+        raise RuntimeError("SHADOWTRACE_THREAT_INTEL_MODE must be 'offline' or 'live'.")
 
     init_database(app)
 
@@ -54,6 +56,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             "style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://*.tile.openstreetmap.org https://unpkg.com; "
             "connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
         )
+        if session.get("user_id") or request.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-store, private")
+            response.headers.setdefault("Pragma", "no-cache")
         return response
 
     @app.errorhandler(400)
@@ -62,7 +67,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.errorhandler(500)
     def handle_error(error):
         code = getattr(error, "code", 500)
-        message = getattr(error, "description", "ShadowTrace encountered an unexpected error.")
+        message = (
+            "ShadowTrace encountered an unexpected error."
+            if code >= 500
+            else getattr(error, "description", "The request could not be completed.")
+        )
+        if code >= 500:
+            app.logger.error("Unhandled application error", exc_info=True)
+        if request.path.startswith("/api/"):
+            return {"error": message, "error_code": f"http_{code}"}, code
         return render_template("error.html", error_code=code, error_message=message), code
 
     return app

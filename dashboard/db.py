@@ -58,6 +58,9 @@ def init_db() -> None:
     ):
         _add_column(connection, "incidents", definition)
     _add_column(connection, "attack_timeline", "kill_chain_phase TEXT")
+    _add_column(connection, "evidence", "evidence_sha256 TEXT")
+    _add_column(connection, "evidence", "ingested_at TEXT")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_evidence_sha256 ON evidence(evidence_sha256)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_incidents_threat_score ON incidents(threat_score)")
 
     timeline_rows = connection.execute(
@@ -124,6 +127,11 @@ def init_db() -> None:
         """,
         (SCHEMA_VERSION, now),
     )
+    connection.commit()
+
+    from dashboard.services.evidence import backfill_evidence_integrity
+
+    backfill_evidence_integrity(connection)
     connection.commit()
 
     # IOC extraction is deterministic and additive; it can safely be rerun on upgrades.
