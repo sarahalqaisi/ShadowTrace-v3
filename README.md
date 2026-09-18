@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="dashboard/static/img/logo.svg" alt="ShadowTrace logo" width="180">
+</p>
+
 # ShadowTrace
 
 **A DFIR and threat-intelligence investigation platform for reconstructing incidents from network, host, and file evidence.**
@@ -19,7 +23,7 @@ ShadowTrace helps an analyst move from heterogeneous evidence to an explainable 
 - Explicit, deterministic offline mode with no silent fallback from live provider failures
 - Analyst workflow, audit trail, similarity pivots, and PDF/CSV/JSON reporting
 
-No real application screenshot is currently tracked in the repository. A future portfolio pass should add a sanitized screenshot captured from the deterministic seed dataset; this README does not substitute a generated mockup.
+![ShadowTrace authenticated investigation dashboard](docs/screenshots/shadowtrace-dashboard.png)
 
 ## Architecture
 

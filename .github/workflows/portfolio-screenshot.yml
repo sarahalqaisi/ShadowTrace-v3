@@ -1,0 +1,51 @@
+name: Portfolio Screenshot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/screenshots/**"
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    env:
+      SHADOWTRACE_SECRET_KEY: portfolio-screenshot-only-key-2026
+      SHADOWTRACE_THREAT_INTEL_MODE: offline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install application and browser
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Seed deterministic demo
+        run: |
+          python scripts/init_db.py
+          python scripts/seed_data.py
+          printf 'PortfolioDemo123!\nPortfolioDemo123!\n' | python scripts/create_user.py --username portfolio --role Analyst
+      - name: Start application
+        run: |
+          python run.py > /tmp/shadowtrace.log 2>&1 &
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:5000/login && break
+            if [ "$attempt" = "30" ]; then cat /tmp/shadowtrace.log; exit 1; fi
+            sleep 1
+          done
+      - name: Capture authenticated dashboard
+        run: python scripts/capture_portfolio_screenshot.py
+      - name: Publish screenshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/shadowtrace-dashboard.png
+          git diff --cached --quiet || git commit -m "docs: add verified ShadowTrace dashboard screenshot"
+          git push
